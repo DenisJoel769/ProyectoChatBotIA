@@ -1,0 +1,32 @@
+﻿@{
+    ViewData["Title"] = "Consulta de compras";
+}
+
+
+<div class="container my-4">
+    <h2 class="text-center mb-4 text-dark">Consultar datos de compras</h2>
+    <!--formulario de consulta-->
+
+
+    <form asp-action="ConsultarDatosCompras" method="post" class="bg-dark p-4 rounded shadow-lg">
+        <div class="mb-3">
+            <label for="datos" class="form-label text-light">Haz una pregunta acerca de los datos de compras (Ej: Cuàles fueron los productos mas comprados?)</label>
+            <input type="text" name="consulta" class="form-control" placeholder="Ingresa tu pregunta aqui" />
+        </div>
+        <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Consultar</button>
+    </form>
+    <!--Resultado de OpenAI-->
+    @if (Model != null)
+    {
+        <div class="mt-4">
+            <div class="card bg-dark text-light border-primary shadow-lg">
+                <div class="card-header">
+                    <h5 class="card-title"><i class="bi bi-chat-left-dots"></i> Respuesta de TecnofertaAI</h5>
+                </div>
+                <div class="card-body">
+                    <pre class="text-wrap border p-3 rounded bg-secundary">* @Html.Raw(Model) *</pre>
+                </div>
+            </div>
+        </div>
+    }
+</div>

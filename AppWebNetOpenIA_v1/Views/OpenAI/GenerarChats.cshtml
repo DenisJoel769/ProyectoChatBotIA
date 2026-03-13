@@ -1,0 +1,48 @@
+﻿@using Microsoft.Extensions.AI
+@{
+    ViewData["Title"] = "Generacion de Chat";
+}
+
+<h2 class="text-center mb-4 text-dark">Chat con OpenAI</h2>
+<div class="container my-4">
+    <div class="chat-box border rounded p-3 mb-3 my-4" style="height: 300px; overflow-y: auto; background-color: dimgray; color: white">
+        @{
+            var historial = ViewBag.Historial as List<ChatMessage>;
+        }
+        @if (historial != null && historial.Count > 0)
+        {
+            @foreach (var mensaje in historial)
+            {
+                <div class="d-flex mb-2">
+                    @if (mensaje.Role == ChatRole.User)
+                    {
+                        <div class="alert-primary text-dark w-75 ms-auto rounded">
+                            <strong><i class="fas fa-user">Tu:</i></strong> @mensaje.Contents[0]
+                        </div>
+                    }
+                    else if(mensaje.Role == ChatRole.Assistant)
+                    {
+                        <div class="alert-secondary text-dark w-75 rounded mt-3" stylesheet="padding-left: 1em">
+                            <strong><i class="fas fa-robot">Robot(OpenAI):</i></strong> @mensaje.Contents[0]
+                        </div>
+                    }
+                </div>
+            }
+
+        } else
+        {
+            <p class="text-center text-white">No hay historial de conversacion disponible</p>
+        }
+    </div>
+    @* formulario para enviar mensajes  *@
+    <form asp-action="EnviarMensaje" method="post" class="bg-dark p-4 rounded shadow-lg">
+        <div class="mb-3">
+            <label for="mensaje" class="form-label text-light">Escribe tu mensaje: </label>
+            <textarea id="mensaje" name="mensaje" class="form-control" rows="3" required></textarea>
+        </div>
+        <div class="text-center">
+            <button type="submit" class="btn btn-success w-50 btn-lg" style="background-color: rgba(39,174,96,0.5)" >
+                <i class="fas fa-papper-plane"></i>Enviar</button>
+        </div>
+    </form>
+</div>
