@@ -1,45 +1,50 @@
 using AppWebNetOpenIA_v1.Data;
-using AppWebNetOpenIA_v1.Models.Views;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
 using OpenAI;
 
 var builder = WebApplication.CreateBuilder(args);
 
-var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+var port = Environment.GetEnvironmentVariable("PORT") ?? "10000";
+builder.WebHost.UseUrls($"http://0.0.0.0:{port}");
 
-// Agregar DbContext con PostgreSQL
+var connectionString = builder.Configuration.GetConnectionString("DefaultConnection");
+if (string.IsNullOrWhiteSpace(connectionString))
+{
+    throw new Exception("No se encontró la cadena de conexión 'DefaultConnection'.");
+}
+
+var openAiApiKey = builder.Configuration["OpenAI:ApiKey"];
+if (string.IsNullOrWhiteSpace(openAiApiKey))
+{
+    throw new Exception("No se encontró la API key de OpenAI.");
+}
+
 builder.Services.AddDbContext<ApplicationDbContext>(options =>
     options.UseNpgsql(connectionString));
 
-// Add services to the container.
 builder.Services.AddControllersWithViews();
 
-//configuracion de apikey con OpenAI
-builder.Services.AddSingleton<OpenAIClient>(provider =>
-    new OpenAIClient(builder.Configuration["OpenAI:ApiKey"]));
+builder.Services.AddSingleton<OpenAIClient>(_ =>
+    new OpenAIClient(openAiApiKey));
 
-//aca configuramos la version de gpt que se utilizara 
-builder.Services.AddSingleton<IChatClient>(providerServicio =>
+builder.Services.AddSingleton<IChatClient>(_ =>
 {
-    var clienteOpenAi = new OpenAI.OpenAIClient(builder.Configuration["OpenAI:ApiKey"]);
+    var clienteOpenAi = new OpenAIClient(openAiApiKey);
     return clienteOpenAi.AsChatClient("gpt-4o-mini");
 });
+
 var app = builder.Build();
 
-// Configure the HTTP request pipeline.
 if (!app.Environment.IsDevelopment())
 {
     app.UseExceptionHandler("/Home/Error");
-    // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
 
 app.UseHttpsRedirection();
 app.UseStaticFiles();
-
 app.UseRouting();
-
 app.UseAuthorization();
 
 app.MapControllerRoute(
