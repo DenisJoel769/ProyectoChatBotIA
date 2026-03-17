@@ -8,17 +8,28 @@
     <!--formulario de consulta-->
 
 
-    <form asp-action="ConsultarDatosCompras" method="post" class="bg-dark p-4 rounded shadow-lg">
+    <form asp-action="ConsultarDatosCompras" method="post" class="bg-dark p-4 rounded shadow-lg" id="formConsultarCompras">
         <div class="mb-3">
             <label for="datos" class="form-label text-light">Haz una pregunta acerca de los datos de compras (Ej: Cuàles fueron los productos mas comprados?)</label>
-            <input type="text" name="consulta" class="form-control" placeholder="Ingresa tu pregunta aqui" />
+            <input type="text" name="consulta" class="form-control" id="consulta" placeholder="Ingresa tu pregunta aqui" />
         </div>
-        <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search"></i> Consultar</button>
+        <button type="submit" class="btn btn-primary w-100"><i class="bi bi-search" id="btnConsultar"></i> Consultar</button>
     </form>
+
+    <div id="spinnerZona" class="text-center my-3" style="display:none;">
+        <div class="spinner-custom"></div>
+        <div class="mt-2 fw-bold text-dark">Consultando datos, por favor espere...</div>
+    </div>
     <!--Resultado de OpenAI-->
     @if (Model != null)
     {
-        <div class="mt-4">
+        <div class="mt-4" id="resultadoConsulta">
+            div class="mb-3 text-end">
+            <div class="mb-3 text-end">
+            <a asp-action="DescargarComprasExcel" class="btn btn-primary">
+                    <i class="bi bi-download"></i> Descargar Excel
+                </a>
+            </div>
             <div class="card bg-dark text-light border-primary shadow-lg">
                 <div class="card-header">
                     <h5 class="card-title"><i class="bi bi-chat-left-dots"></i> Respuesta de TecnofertaAI</h5>
@@ -30,3 +41,57 @@
         </div>
     }
 </div>
+
+<style>
+    .spinner-custom {
+        width: 48px;
+        height: 48px;
+        margin: 0 auto;
+        border: 5px solid #d9d9d9;
+        border-top: 5px solid #0d6efd;
+        border-radius: 50%;
+        animation: girar 0.8s linear infinite;
+    }
+
+    @@keyframes girar {
+        0% {
+            transform: rotate(0deg);
+        }
+
+        100% {
+            transform: rotate(360deg);
+        }
+    }
+</style>
+
+@section Scripts {
+    <script>
+        document.addEventListener("DOMContentLoaded", function () {
+            const form = document.getElementById("formConsultarCompras");
+            const spinner = document.getElementById("spinnerZona");
+            const boton = document.getElementById("btnConsultar");
+            const input = document.getElementById("consulta");
+            const resultado = document.getElementById("resultadoConsulta");
+
+            form.addEventListener("submit", function (e) {
+                if (!input.value.trim()) {
+                    return;
+                }
+
+                e.preventDefault();
+
+                if (resultado) {
+                    resultado.style.display = "none";
+                }
+
+                spinner.style.display = "block";
+                boton.disabled = true;
+                input.readOnly = true;
+
+                setTimeout(function () {
+                    form.submit();
+                }, 300);
+            });
+        });
+    </script>
+}

@@ -2,6 +2,7 @@
 using System.Text;
 using AppWebNetOpenIA_v1.Data;
 using AppWebNetOpenIA_v1.Models;
+using ClosedXML.Excel;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.AI;
@@ -60,37 +61,14 @@ namespace AppWebNetOpenIA_v1.Controllers
         }
         //Metodo para consultar los datos de ventas 
         [HttpPost]
-        //public async Task<IActionResult> ConsultarDatosVentas(string consulta)
-        //{
-        //    //construye un mensaje con la consulta del usuario 
-        //    var prompt = $"el usuario pregunto: {consulta} \n\n aquí estan los datos de ventas: \n";
-        //    var ventas_detalle = await _context.VentasDetalles.ToListAsync();
-        //    //Agrega la informacion de cada transaccion al mensaje 
-        //    foreach (var item in ventas_detalle)
-        //    {
-        //        prompt += $"Descripcion: {item.ItemDescrip}, Marca: {item.MarDescrip}" +
-        //            $"Precio_venta: {item.Precio}" +
-        //            $"Estado:{item.Estado}, Fecha_venta:{item.FechaVenta} \n";
-        //    }
-
-        //    //solicita a la IA que genere un resultado HTML + JavaScript
-        //    prompt += "\n\n Por favor provea el resultado en formato HTML y JavaScript,por default muestra los resultados en una tabla y la cabecera en color negro, si te piden consejos, ocultar la tabla y mostrar solo los consejos en letras color negro y fondo blanco ";
-
-
-        //    //Envia el mensaje al cliente de OpenAI para obtener una respuesta generada por IA 
-        //    var response = await _chatClient.CompleteAsync(prompt);
-
-        //    return View(nameof(ConsultarVentas), response);
-        //}
-        [HttpPost]
         public async Task<IActionResult> ConsultarDatosVentas(string consulta)
         {
             if (string.IsNullOrWhiteSpace(consulta))
                 return RedirectToAction(nameof(ConsultarVentas));
 
-            // 1. Proyectamos solo los datos necesarios para ahorrar memoria y ancho de banda
             var ventas = await _context.VentasDetalles
-                .Select(v => new {
+                .Select(v => new
+                {
                     v.ItemDescrip,
                     v.MarDescrip,
                     v.Precio,
@@ -99,69 +77,268 @@ namespace AppWebNetOpenIA_v1.Controllers
                 })
                 .ToListAsync();
 
-            // 2. Usamos StringBuilder para una concatenación de strings eficiente
+            if (!ventas.Any())
+            {
+                return View(nameof(ConsultarVentas),
+                    "<div class='alert alert-warning'>No hay datos de ventas disponibles.</div>");
+            }
+
+            string consultaLower = consulta.ToLower();
+
+            bool pideGrafico = consultaLower.Contains("grafico") ||
+                               consultaLower.Contains("gráfico") ||
+                               consultaLower.Contains("chart") ||
+                               consultaLower.Contains("barra") ||
+                               consultaLower.Contains("barras") ||
+                               consultaLower.Contains("torta") ||
+                               consultaLower.Contains("linea") ||
+                               consultaLower.Contains("línea");
+
+            bool pideConsejo = consultaLower.Contains("consejo") ||
+                               consultaLower.Contains("recomendacion") ||
+                               consultaLower.Contains("recomendación") ||
+                               consultaLower.Contains("analisis") ||
+                               consultaLower.Contains("análisis") ||
+                               consultaLower.Contains("como vender") ||
+                               consultaLower.Contains("cómo vender") ||
+                               consultaLower.Contains("vender más") ||
+                               consultaLower.Contains("mejorar ventas") ||
+                               consultaLower.Contains("estrategia");
+
             var sb = new StringBuilder();
-            sb.AppendLine($"El usuario preguntó: {consulta}");
-            sb.AppendLine("Aquí están los datos de ventas:");
+
+            sb.AppendLine("Eres un asistente especializado en análisis de ventas.");
+            sb.AppendLine("Debes responder exclusivamente en HTML válido.");
+            sb.AppendLine("No uses markdown.");
+            sb.AppendLine("No escribas texto fuera del HTML.");
+            sb.AppendLine("No inventes información que no esté presente en los datos.");
+            sb.AppendLine("Si faltan datos para responder con exactitud, indícalo claramente.");
+            sb.AppendLine();
+
+            sb.AppendLine("REGLAS:");
+            sb.AppendLine("- Si el usuario pide listar, mostrar, consultar, ver o comparar ventas, responde con una tabla HTML.");
+            sb.AppendLine("- Si el usuario pide recomendaciones, consejos o análisis, responde con texto HTML claro y ordenado.");
+            sb.AppendLine("- Si el usuario pide gráfico, responde con HTML y JavaScript usando Chart.js.");
+            sb.AppendLine("- Si corresponde, puedes combinar una tabla con una breve conclusión.");
+            sb.AppendLine("- Usa fondo blanco y texto negro.");
+            sb.AppendLine("- En tablas con varios registros, usa cabecera negra con texto blanco.");
+            sb.AppendLine("- Si el usuario pregunta qué producto se vende más, responde solo si puede inferirse de los datos.");
+            sb.AppendLine("- Si no existen cantidades vendidas, aclara esa limitación.");
+            sb.AppendLine();
+
+            if (pideGrafico)
+                sb.AppendLine("La intención principal del usuario es ver un gráfico.");
+            else if (pideConsejo)
+                sb.AppendLine("La intención principal del usuario es recibir recomendaciones o análisis.");
+            else
+                sb.AppendLine("La intención principal del usuario es consultar datos de ventas.");
+
+            sb.AppendLine();
+            sb.AppendLine($"CONSULTA DEL USUARIO: {consulta}");
+            sb.AppendLine();
+            sb.AppendLine("DATOS DE VENTAS:");
 
             foreach (var item in ventas)
             {
-                sb.AppendLine($"- {item.ItemDescrip} ({item.MarDescrip}): {item.Precio:C} | Estado: {item.Estado} | Fecha: {item.FechaVenta:dd/MM/yyyy}");
+                string precio = Convert.ToDecimal(item.Precio).ToString("N0");
+
+                sb.AppendLine(
+                    $"Producto: {item.ItemDescrip} | " +
+                    $"Marca: {item.MarDescrip} | " +
+                    $"Precio: {precio} | " +
+                    $"Estado: {item.Estado} | " +
+                    $"FechaVenta: {item.FechaVenta:dd/MM/yyyy}"
+                );
             }
 
-            // 3. Instrucciones claras de formato (System Prompt)
-            sb.AppendLine("\nINSTRUCCIONES DE SALIDA:");
-            sb.AppendLine("- Devuelve el resultado exclusivamente en formato HTML y JavaScript.");
-            sb.AppendLine("- Por defecto, usa una tabla con cabecera negra.");
-            sb.AppendLine("- Si el usuario pide consejos, oculta la tabla y muestra solo texto negro sobre fondo blanco.");
-
-            // 4. Enviamos a la IA
             var response = await _chatClient.CompleteAsync(sb.ToString());
 
-            // Pasamos el contenido de la respuesta (string) a la vista
             return View(nameof(ConsultarVentas), response.ToString());
         }
 
         //metodo para consultar los datos de las compras 
         public async Task<IActionResult> ConsultarDatosCompras(string consulta)
         {
-            //construye un mensaje con la consulta del usuario 
-            var prompt = $"el usuario pregunto: {consulta} \n\n aquí estan los datos de compras: \n";
-            var ventas_detalle = await _context.ComprasDetalles.ToListAsync();
-            //Agrega la informacion de cada transaccion al mensaje 
-            foreach (var item in ventas_detalle)
+            if (string.IsNullOrWhiteSpace(consulta))
+                return RedirectToAction(nameof(ConsultarCompras));
+
+            var compraDetalle = await _context.ComprasDetalles
+                .Select(v => new
+                {
+                    v.Item_Descripcion,
+                    v.Cantidad,
+                    v.Precio_Compra,
+                    v.Precio_Venta,
+                    v.Fecha
+                })
+                .ToListAsync();
+
+            if (!compraDetalle.Any())
             {
-                prompt += $"Descripcion: {item.Item_Descripcion}, Cantidad: {item.Cantidad}" +
-                    $"PrecioCompra: {item.Precio_Compra}" +
-                    $"PrecioVenta:{item.Precio_Venta}, Fecha_Compra:{item.Fecha} \n";
+                return View(nameof(ConsultarCompras),
+                    "<div class='alert alert-warning'>No hay datos de compras disponibles.</div>");
             }
 
-            //solicita a la IA que genere un resultado HTML + JavaScript
-            prompt += "\n\n Por favor provea el resultado en formato HTML y JavaScript,no es necesario mostrar comentarios solo si pide el usuario,los resultados quiero que muestres por defaul en un tabla pero el usuario pide " +
-                "que muestre en un grafico favor mostrar de esa forma";
+            string consultaLower = consulta.ToLower();
 
-            //Envia el mensaje al cliente de OpenAI para obtener una respuesta generada por IA 
-            var response = await _chatClient.CompleteAsync(prompt);
+            bool pideGrafico = consultaLower.Contains("grafico") ||
+                               consultaLower.Contains("gráfico") ||
+                               consultaLower.Contains("chart") ||
+                               consultaLower.Contains("barra") ||
+                               consultaLower.Contains("barras") ||
+                               consultaLower.Contains("torta") ||
+                               consultaLower.Contains("linea") ||
+                               consultaLower.Contains("línea");
 
-            return View(nameof(ConsultarCompras), response);
+            bool pideConsejo = consultaLower.Contains("consejo") ||
+                               consultaLower.Contains("recomendacion") ||
+                               consultaLower.Contains("recomendación") ||
+                               consultaLower.Contains("analisis") ||
+                               consultaLower.Contains("análisis") ||
+                               consultaLower.Contains("como comprar") ||
+                               consultaLower.Contains("cómo comprar") ||
+                               consultaLower.Contains("comprar mejor") ||
+                               consultaLower.Contains("optimizar compras");
+
+            var sb = new StringBuilder();
+
+            sb.AppendLine("Eres un asistente especializado en análisis de compras e inventario.");
+            sb.AppendLine("Debes responder exclusivamente en HTML válido.");
+            sb.AppendLine("No uses markdown.");
+            sb.AppendLine("No escribas texto fuera del HTML.");
+            sb.AppendLine("No inventes información no presente en los datos.");
+            sb.AppendLine("Si faltan datos para responder con exactitud, indícalo claramente.");
+            sb.AppendLine();
+
+            sb.AppendLine("REGLAS:");
+            sb.AppendLine("- Si el usuario pide listar, mostrar, consultar o comparar compras, responde con una tabla HTML.");
+            sb.AppendLine("- Si el usuario pide recomendaciones o análisis, responde con texto HTML claro y ordenado.");
+            sb.AppendLine("- Si el usuario pide gráfico, responde con HTML y JavaScript usando Chart.js.");
+            sb.AppendLine("- Si corresponde, puedes combinar una tabla con una breve conclusión.");
+            sb.AppendLine("- Usa fondo blanco y texto negro.");
+            sb.AppendLine("- En tablas con varios registros, usa cabecera negra con texto blanco.");
+            sb.AppendLine("- Si el usuario pregunta por tendencias o comportamiento de compras, responde solo con base en los datos disponibles.");
+            sb.AppendLine("- Si el usuario pregunta algo que requiere datos no disponibles, acláralo.");
+            sb.AppendLine();
+
+            if (pideGrafico)
+                sb.AppendLine("La intención principal del usuario es ver un gráfico.");
+            else if (pideConsejo)
+                sb.AppendLine("La intención principal del usuario es recibir recomendaciones o análisis.");
+            else
+                sb.AppendLine("La intención principal del usuario es consultar datos de compras.");
+
+            sb.AppendLine();
+            sb.AppendLine($"CONSULTA DEL USUARIO: {consulta}");
+            sb.AppendLine();
+            sb.AppendLine("DATOS DE COMPRAS:");
+
+            foreach (var item in compraDetalle)
+            {
+                string precioCompra = Convert.ToDecimal(item.Precio_Compra).ToString("N0");
+                string precioVenta = Convert.ToDecimal(item.Precio_Venta).ToString("N0");
+
+                sb.AppendLine(
+                    $"Producto: {item.Item_Descripcion} | " +
+                    $"Cantidad: {item.Cantidad} | " +
+                    $"PrecioCompra: {precioCompra} | " +
+                    $"PrecioVenta: {precioVenta} | " +
+                    $"Fecha: {item.Fecha:dd/MM/yyyy}"
+                );
+            }
+
+            var response = await _chatClient.CompleteAsync(sb.ToString());
+
+            return View(nameof(ConsultarCompras), response.ToString());
         }
 
         //metodo para consultar stock de productos 
-        public async Task<IActionResult> ConsultarDatosStock(string consulta) 
+        public async Task<IActionResult> ConsultarDatosStock(string consulta)
         {
-            var prompt = $"El usuario pregunto : {consulta} \n\n aqui estan los productos disponibles: \n";
-            var stock_productos = await _context.Stocks.ToListAsync();
+            if (string.IsNullOrWhiteSpace(consulta))
+                return RedirectToAction(nameof(ConsultarStock));
 
-            //agrega la informacion de cada transaccion al mensaje 
-            foreach (var item in stock_productos) 
+            var stockProductos = await _context.Stocks
+                .Select(s => new
+                {
+                    s.NombreProducto,
+                    s.Marca,
+                    s.PrecioCompra,
+                    s.PrecioVenta,
+                    s.Cantidad
+                })
+                .ToListAsync();
+
+            if (!stockProductos.Any())
             {
-                prompt += $"Descripcion: {item.NombreProducto},Marca: {item.Marca}" +
-                    $"PrecioCompra: {item.PrecioCompra}, PrecioVenta: {item.PrecioVenta}" +
-                    $"Cantidad: {item.Cantidad}";
+                return View(nameof(ConsultarStock), "<div class='alert alert-warning'>No hay datos de stock disponibles.</div>");
             }
-            prompt += "\n\n Por favor provea el resultado en formato HTML y JavaScript, solo muestra el resultado sin mostrar comentarios, muestra en una tabla, la cabecera en negro";
-            return View(nameof(ConsultarDatosStock));
 
+            string consultaLower = consulta.ToLower();
+
+            bool pideGrafico = consultaLower.Contains("grafico") ||
+                               consultaLower.Contains("gráfico") ||
+                               consultaLower.Contains("chart") ||
+                               consultaLower.Contains("barra") ||
+                               consultaLower.Contains("barras") ||
+                               consultaLower.Contains("torta") ||
+                               consultaLower.Contains("linea") ||
+                               consultaLower.Contains("línea");
+
+            bool pideConsejo = consultaLower.Contains("como vender") ||
+                               consultaLower.Contains("cómo vender") ||
+                               consultaLower.Contains("vender más") ||
+                               consultaLower.Contains("recomendacion") ||
+                               consultaLower.Contains("recomendación") ||
+                               consultaLower.Contains("consejo");
+
+            var sb = new StringBuilder();
+
+            sb.AppendLine("Eres un asistente especializado en análisis de stock e inventario.");
+            sb.AppendLine("Debes responder exclusivamente en HTML válido.");
+            sb.AppendLine("No uses markdown.");
+            sb.AppendLine("No escribas texto fuera del HTML.");
+            sb.AppendLine("No inventes información no presente en los datos.");
+            sb.AppendLine("Si faltan datos para responder algo con exactitud, indícalo claramente.");
+            sb.AppendLine();
+
+            sb.AppendLine("REGLAS:");
+            sb.AppendLine("- Si el usuario pide productos o stock, usa tabla HTML.");
+            sb.AppendLine("- Si el usuario pide consejos o recomendaciones, responde con texto HTML claro.");
+            sb.AppendLine("- Si el usuario pide gráfico, responde con HTML + Chart.js.");
+            sb.AppendLine("- Usa fondo blanco, texto negro y tablas legibles.");
+            sb.AppendLine("- En tablas con varios registros, usa cabecera negra con texto blanco.");
+            sb.AppendLine();
+
+            if (pideGrafico)
+                sb.AppendLine("La intención principal del usuario es ver un gráfico.");
+            else if (pideConsejo)
+                sb.AppendLine("La intención principal del usuario es recibir recomendaciones o análisis.");
+            else
+                sb.AppendLine("La intención principal del usuario es consultar datos del stock.");
+
+            sb.AppendLine();
+            sb.AppendLine($"CONSULTA DEL USUARIO: {consulta}");
+            sb.AppendLine();
+            sb.AppendLine("DATOS DISPONIBLES:");
+
+            foreach (var item in stockProductos)
+            {
+                string precioCompra = Convert.ToDecimal(item.PrecioCompra).ToString("N0");
+                string precioVenta = Convert.ToDecimal(item.PrecioVenta).ToString("N0");
+
+                sb.AppendLine(
+                    $"Producto: {item.NombreProducto} | " +
+                    $"Marca: {item.Marca} | " +
+                    $"Cantidad: {item.Cantidad} | " +
+                    $"PrecioCompra: {precioCompra} | " +
+                    $"PrecioVenta: {precioVenta}"
+                );
+            }
+
+            var response = await _chatClient.CompleteAsync(sb.ToString());
+
+            return View(nameof(ConsultarStock), response.ToString());
         }
 
         //FUNCIONALIDAD DE GENERACION DE CHATS CONVERSACIONAL 
@@ -186,6 +363,163 @@ namespace AppWebNetOpenIA_v1.Controllers
 
             //pasar la conversacion a la vista
             return View("GenerarChats");
+        }
+
+        public async Task<IActionResult> DescargarComprasExcel()
+        {
+            var stock = await _context.ComprasDetalles
+                .Select(v => new
+                {
+                    v.Item_Descripcion,
+                    v.Cantidad,
+                    v.Precio_Compra,
+                    v.Precio_Venta,
+                    v.Fecha
+                })
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("ComprasDetalles");
+
+            // Cabeceras
+            worksheet.Cell(1, 1).Value = "Producto";
+            worksheet.Cell(1, 2).Value = "Marca";
+            worksheet.Cell(1, 3).Value = "Precio Compra";
+            worksheet.Cell(1, 4).Value = "Precio Venta";
+            worksheet.Cell(1, 5).Value = "Cantidad";
+
+            // Estilo cabecera
+            var headerRange = worksheet.Range(1, 1, 1, 5);
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Fill.BackgroundColor = XLColor.Black;
+            headerRange.Style.Font.FontColor = XLColor.White;
+
+            int fila = 2;
+            foreach (var item in stock)
+            {
+                worksheet.Cell(fila, 1).Value = item.Item_Descripcion;
+                worksheet.Cell(fila, 2).Value = item.Cantidad;
+                worksheet.Cell(fila, 3).Value = item.Precio_Compra;
+                worksheet.Cell(fila, 4).Value = item.Precio_Venta;
+                worksheet.Cell(fila, 5).Value = item.Fecha;
+                fila++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var contenido = stream.ToArray();
+
+            return File(
+                contenido,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "StockProductos.xlsx"
+            );
+        }
+        public async Task<IActionResult> DescargarVentasExcel()
+        {
+            var stock = await _context.VentasDetalles
+                .Select(v => new
+                {
+                    v.ItemDescrip,
+                    v.MarDescrip,
+                    v.Precio,
+                    v.Estado,
+                    v.FechaVenta
+                })
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("VentasDetalles");
+
+            // Cabeceras
+            worksheet.Cell(1, 1).Value = "Producto";
+            worksheet.Cell(1, 2).Value = "Marca";
+            worksheet.Cell(1, 3).Value = "Precio Compra";
+            worksheet.Cell(1, 4).Value = "Precio Venta";
+            worksheet.Cell(1, 5).Value = "Cantidad";
+
+            // Estilo cabecera
+            var headerRange = worksheet.Range(1, 1, 1, 5);
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Fill.BackgroundColor = XLColor.Black;
+            headerRange.Style.Font.FontColor = XLColor.White;
+
+            int fila = 2;
+            foreach (var item in stock)
+            {
+                worksheet.Cell(fila, 1).Value = item.ItemDescrip;
+                worksheet.Cell(fila, 2).Value = item.MarDescrip;
+                worksheet.Cell(fila, 3).Value = item.Precio;
+                worksheet.Cell(fila, 4).Value = item.Estado;
+                worksheet.Cell(fila, 5).Value = item.FechaVenta;
+                fila++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var contenido = stream.ToArray();
+
+            return File(
+                contenido,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "StockProductos.xlsx"
+            );
+        }
+        public async Task<IActionResult> DescargarStockExcel()
+        {
+            var stock = await _context.Stocks
+                .Select(s => new
+                {
+                    s.NombreProducto,
+                    s.Marca,
+                    s.PrecioCompra,
+                    s.PrecioVenta,
+                    s.Cantidad
+                })
+                .ToListAsync();
+
+            using var workbook = new XLWorkbook();
+            var worksheet = workbook.Worksheets.Add("Stock");
+
+            // Cabeceras
+            worksheet.Cell(1, 1).Value = "Producto";
+            worksheet.Cell(1, 2).Value = "Marca";
+            worksheet.Cell(1, 3).Value = "Precio Compra";
+            worksheet.Cell(1, 4).Value = "Precio Venta";
+            worksheet.Cell(1, 5).Value = "Cantidad";
+
+            // Estilo cabecera
+            var headerRange = worksheet.Range(1, 1, 1, 5);
+            headerRange.Style.Font.Bold = true;
+            headerRange.Style.Fill.BackgroundColor = XLColor.Black;
+            headerRange.Style.Font.FontColor = XLColor.White;
+
+            int fila = 2;
+            foreach (var item in stock)
+            {
+                worksheet.Cell(fila, 1).Value = item.NombreProducto;
+                worksheet.Cell(fila, 2).Value = item.Marca;
+                worksheet.Cell(fila, 3).Value = item.PrecioCompra;
+                worksheet.Cell(fila, 4).Value = item.PrecioVenta;
+                worksheet.Cell(fila, 5).Value = item.Cantidad;
+                fila++;
+            }
+
+            worksheet.Columns().AdjustToContents();
+
+            using var stream = new MemoryStream();
+            workbook.SaveAs(stream);
+            var contenido = stream.ToArray();
+
+            return File(
+                contenido,
+                "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                "StockProductos.xlsx"
+            );
         }
     }
 }
