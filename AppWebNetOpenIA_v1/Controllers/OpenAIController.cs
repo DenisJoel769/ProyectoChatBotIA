@@ -72,7 +72,7 @@ namespace AppWebNetOpenIA_v1.Controllers
                     v.ItemDescrip,
                     v.MarDescrip,
                     v.Precio,
-                    v.Estado,
+                    v.Cantidad,
                     v.FechaVenta
                 })
                 .ToListAsync();
@@ -140,13 +140,13 @@ namespace AppWebNetOpenIA_v1.Controllers
 
             foreach (var item in ventas)
             {
-                string precio = Convert.ToDecimal(item.Precio).ToString("N0");
+                string precio = item.Precio.ToString("N0");
 
                 sb.AppendLine(
                     $"Producto: {item.ItemDescrip} | " +
                     $"Marca: {item.MarDescrip} | " +
                     $"Precio: {precio} | " +
-                    $"Estado: {item.Estado} | " +
+                    $"Cantidad: {item.Cantidad} | " +
                     $"FechaVenta: {item.FechaVenta:dd/MM/yyyy}"
                 );
             }
@@ -235,8 +235,8 @@ namespace AppWebNetOpenIA_v1.Controllers
 
             foreach (var item in compraDetalle)
             {
-                string precioCompra = Convert.ToDecimal(item.Precio_Compra).ToString("N0");
-                string precioVenta = Convert.ToDecimal(item.Precio_Venta).ToString("N0");
+                string precioCompra = item.Precio_Compra.ToString("N0");
+                string precioVenta = item.Precio_Venta.ToString("N0");
 
                 sb.AppendLine(
                     $"Producto: {item.Item_Descripcion} | " +
@@ -324,8 +324,8 @@ namespace AppWebNetOpenIA_v1.Controllers
 
             foreach (var item in stockProductos)
             {
-                string precioCompra = Convert.ToDecimal(item.PrecioCompra).ToString("N0");
-                string precioVenta = Convert.ToDecimal(item.PrecioVenta).ToString("N0");
+                string precioCompra = item.PrecioCompra.ToString("N0");
+                string precioVenta = item.PrecioVenta.ToString("N0");
 
                 sb.AppendLine(
                     $"Producto: {item.NombreProducto} | " +
